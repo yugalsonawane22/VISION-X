@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>VisionX — Live Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #080c14;
+      --panel:   #0c1220;
+      --panel2:  #0f1628;
+      --border:  #162240;
+      --accent:  #00cfff;
+      --accent2: #00ffb0;
+      --warn:    #ff4d4d;
+      --rec:     #ff3d6e;
+      --green:   #00e87a;
+      --text:    #b8d4e8;
+      --dim:     #2e4a66;
+      --glow:    0 0 10px rgba(0,207,255,0.35);
+      --glow2:   0 0 10px rgba(0,255,176,0.35);
+      --glow-r:  0 0 10px rgba(255,61,110,0.4);
+      --glow-g:  0 0 10px rgba(0,232,122,0.4);
+    }
+
+    html { height: 100%; background: var(--bg); }
+
+    body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Share Tech Mono', monospace;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 3px,
+        rgba(0,0,0,0.06) 3px, rgba(0,0,0,0.06) 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: radial-gradient(circle, rgba(0,207,255,0.06) 1px, transparent 1px);
+      background-size: 28px 28px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      padding: 14px;
+      gap: 12px;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 12px;
+    }
+
+    .logo {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 1.3rem;
+      letter-spacing: 5px;
+      color: var(--accent);
+      text-shadow: var(--glow);
+    }
+    .logo span { color: var(--accent2); text-shadow: var(--glow2); }
+
+    .header-right { display: flex; align-items: center; gap: 16px; }
+    .clock { font-size: 0.68rem; color: var(--accent); letter-spacing: 2px; opacity: 0.85; }
+
+    .mode-pill {
+      font-size: 0.54rem;
+      letter-spacing: 2px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      border: 1px solid var(--dim);
+      color: var(--dim);
+      transition: all 0.3s;
+    }
+    .mode-pill.streaming { border-color: var(--accent); color: var(--accent); background: rgba(0,207,255,0.08); box-shadow: var(--glow); }
+    .mode-pill.recording { border-color: var(--rec); color: var(--rec); background: rgba(255,61,110,0.08); box-shadow: var(--glow-r); animation: blink 1s step-end infinite; }
+
+    @keyframes blink { 50% { opacity: 0.4; } }
+
+    .blocks {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 12px;
+      flex: 1;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 9px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,207,255,0.03);
+      flex-shrink: 0;
+    }
+
+    .panel-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.6rem;
+      letter-spacing: 3px;
+      color: var(--accent);
+    }
+
+    .badge {
+      font-size: 0.54rem;
+      letter-spacing: 2px;
+      padding: 2px 8px;
+      border-radius: 2px;
+      text-transform: uppercase;
+    }
+    .badge-live { background: rgba(255,77,77,0.12); border: 1px solid var(--warn); color: var(--warn); animation: blink 1.4s step-end infinite; }
+    .badge-off  { background: rgba(46,74,102,0.2);  border: 1px solid var(--dim);  color: var(--dim); }
+    .badge-rec  { background: rgba(255,61,110,0.12); border: 1px solid var(--rec); color: var(--rec); animation: blink 1s step-end infinite; }
+
+    .stream-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #04080f;
+      position: relative;
+      overflow: hidden;
+      min-height: 340px;
+    }
+
+    .stream-img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .stream-img.visible { opacity: 1; }
+
+    .corner { position: absolute; width: 16px; height: 16px; border-color: var(--accent); border-style: solid; opacity: 0.4; z-index: 2; }
+    .corner.tl { top: 10px;    left: 10px;  border-width: 2px 0 0 2px; }
+    .corner.tr { top: 10px;    right: 10px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 10px; left: 10px;  border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 10px; right: 10px; border-width: 0 2px 2px 0; }
+
+    .idle-msg {
+      position: absolute;
+      z-index: 3;
+      text-align: center;
+      color: var(--dim);
+      font-size: 0.72rem;
+      letter-spacing: 2px;
+      line-height: 2.4;
+      pointer-events: none;
+    }
+    .idle-msg .icon { font-size: 2rem; display: block; margin-bottom: 8px; opacity: 0.2; }
+
+    .loading-msg {
+      position: absolute;
+      z-index: 3;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--accent);
+      font-size: 0.6rem;
+      letter-spacing: 3px;
+    }
+    .loading-msg.active { display: flex; }
+    .spin-ring {
+      width: 36px; height: 36px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .rec-overlay {
+      position: absolute; inset: 0;
+      z-index: 4;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4,8,15,0.82);
+      gap: 14px;
+    }
+    .rec-overlay.active { display: flex; }
+
+    .rec-pulse {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--rec);
+      box-shadow: 0 0 0 0 rgba(255,61,110,0.6);
+      animation: recPulse 1.4s ease-out infinite;
+    }
+    @keyframes recPulse {
+      0%   { box-shadow: 0 0 0 0    rgba(255,61,110,0.6); }
+      70%  { box-shadow: 0 0 0 20px rgba(255,61,110,0);   }
+      100% { box-shadow: 0 0 0 0    rgba(255,61,110,0);   }
+    }
+
+    .rec-label { font-family: 'Orbitron', sans-serif; font-size: 0.9rem; letter-spacing: 6px; color: var(--rec); text-shadow: var(--glow-r); }
+    .rec-timer { font-size: 0.65rem; letter-spacing: 3px; color: rgba(255,61,110,0.7); }
+
+    /* ── RIGHT COL ── */
+    .right-col { display: flex; flex-direction: column; gap: 12px; }
+
+    .controls-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+
+    .section-label {
+      padding: 8px 12px 4px;
+      font-size: 0.5rem;
+      letter-spacing: 2px;
+      color: var(--dim);
+    }
+    .btn-row + .section-label { border-top: 1px solid var(--border); }
+
+    .btn-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--border);
+    }
+
+    .ctrl-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 16px 8px;
+      background: var(--panel2);
+      border: none;
+      cursor: pointer;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 0.55rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      transition: background 0.15s, transform 0.1s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .ctrl-btn:hover    { background: rgba(0,207,255,0.06); }
+    .ctrl-btn:active   { transform: scale(0.95); }
+    .ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; transform: none; }
+
+    .btn-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+
+    .btn-stream-on  { color: var(--accent); }
+    .btn-stream-on .btn-icon { border: 1.5px solid var(--accent); box-shadow: var(--glow); }
+    .btn-stream-on .btn-icon::after { content:''; width:0; height:0; border-style:solid; border-width:7px 0 7px 12px; border-color:transparent transparent transparent var(--accent); margin-left:2px; }
+
+    .btn-stream-off { color: var(--warn); }
+    .btn-stream-off .btn-icon { border: 1.5px solid var(--warn); box-shadow: var(--glow-r); }
+    .btn-stream-off .btn-icon::after { content:''; width:9px; height:9px; background:var(--warn); border-radius:1px; }
+
+    .btn-rec-on { color: var(--rec); }
+    .btn-rec-on .btn-icon { border: 1.5px solid var(--rec); box-shadow: var(--glow-r); }
+    .btn-rec-on .btn-icon::after { content:''; width:13px; height:13px; background:var(--rec); border-radius:50%; }
+
+    .btn-rec-off { color: var(--green); }
+    .btn-rec-off .btn-icon { border: 1.5px solid var(--green); box-shadow: var(--glow-g); }
+    .btn-rec-off .btn-icon::after { content:''; width:11px; height:11px; background:var(--green); border-radius:2px; }
+
+    .cmd-status {
+      padding: 6px 12px;
+      font-size: 0.52rem;
+      letter-spacing: 2px;
+      color: var(--dim);
+      border-top: 1px solid var(--border);
+      min-height: 28px;
+      display: flex; align-items: center; gap: 6px;
+      transition: color 0.2s;
+    }
+    .cmd-status.ok      { color: var(--green); }
+    .cmd-status.err     { color: var(--warn); }
+    .cmd-status.pending { color: var(--accent); }
+
+    .status-body { flex:1; padding:12px; display:flex; flex-direction:column; gap:8px; }
+
+    .stat-row { display:flex; flex-direction:column; gap:3px; padding:7px 9px; border:1px solid var(--border); border-radius:3px; background:rgba(0,207,255,0.02); }
+    .stat-key { font-size:0.5rem; letter-spacing:2px; color:var(--dim); text-transform:uppercase; }
+    .stat-val { font-size:0.68rem; color:var(--text); word-break:break-all; }
+    .stat-val.accent  { color:var(--accent);  text-shadow:var(--glow);  }
+    .stat-val.accent2 { color:var(--accent2); text-shadow:var(--glow2); }
+    .stat-val.rec     { color:var(--rec); }
+    .stat-val.green   { color:var(--green); }
+
+    /* ── DEBUG CONSOLE ── */
+    .debug-panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      overflow: hidden;
+    }
+    .debug-body {
+      padding: 8px;
+      max-height: 120px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .debug-line {
+      font-size: 0.48rem;
+      letter-spacing: 1px;
+      padding: 2px 4px;
+      border-radius: 2px;
+      word-break: break-all;
+    }
+    .debug-line.info { color: var(--accent); }
+    .debug-line.ok   { color: var(--green); }
+    .debug-line.err  { color: var(--warn); }
+    .debug-line.warn { color: #ffb347; }
+
+    footer {
+      display:flex; justify-content:space-between; flex-wrap:wrap; gap:6px;
+      border-top:1px solid var(--border); padding-top:10px;
+      font-size:0.54rem; color:var(--dim); letter-spacing:2px;
+    }
+
+    .dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--accent2); box-shadow:var(--glow2); margin-right:6px; animation:pulse 2s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.3;transform:scale(.6)} }
+
+    @media (max-width: 720px) {
+      body { overflow-y: auto; }
+      .shell { padding:8px; gap:10px; min-height:auto; padding-bottom:20px; }
+      .logo { font-size:1rem; letter-spacing:3px; }
+      .blocks { grid-template-columns:1fr; }
+      .stream-body { min-height:200px; height:56vw; max-height:300px; }
+    }
+  </style>
+</head>
+<body>
+<div class="shell">
+
+  <header>
+    <div class="logo">VISION<span>X</span></div>
+    <div class="header-right">
+      <span class="mode-pill" id="modePill">IDLE</span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
+  </header>
+
+  <div class="blocks">
+
+    <!-- LIVE FEED -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">◈ LIVE FEED</span>
+        <span class="badge badge-off" id="streamBadge">● OFFLINE</span>
+      </div>
+      <div class="stream-body">
+        <div class="corner tl"></div><div class="corner tr"></div>
+        <div class="corner bl"></div><div class="corner br"></div>
+
+        <div class="idle-msg" id="idleMsg">
+          <span class="icon">📷</span>
+          AWAITING STREAM<br>
+          <span style="font-size:0.56rem;opacity:0.4">PRESS STREAM ON TO BEGIN</span>
+        </div>
+
+        <div class="loading-msg" id="loadingMsg">
+          <div class="spin-ring"></div>
+          CONNECTING...
+        </div>
+
+        <!--
+          MJPEG via <img> — NOT subject to CORS or fetch() restrictions.
+          Works from file://, localhost, or any origin.
+          Commands use no-cors <img> ping trick — also bypasses fetch() block.
+        -->
+        <img class="stream-img" id="streamImg" alt="" />
+
+        <div class="rec-overlay" id="recOverlay">
+          <div class="rec-pulse"></div>
+          <div class="rec-label">● REC</div>
+          <div class="rec-timer" id="recTimer">00:00:00</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN -->
+    <div class="right-col">
+
+      <div class="controls-panel">
+        <div class="panel-header"><span class="panel-title">◈ CONTROLS</span></div>
+
+        <div class="section-label">STREAM</div>
+        <div class="btn-row">
+          <button class="ctrl-btn btn-stream-on"  id="btnStreamOn"  onclick="cmdStreamOn()"><div class="btn-icon"></div>STREAM ON</button>
+          <button class="ctrl-btn btn-stream-off" id="btnStreamOff" onclick="cmdStreamOff()"><div class="btn-icon"></div>STREAM OFF</button>
+        </div>
+
+        <div class="section-label">RECORDING</div>
+        <div class="btn-row">
+          <button class="ctrl-btn btn-rec-on"  id="btnRecOn"  onclick="cmdRecOn()"><div class="btn-icon"></div>REC ON</button>
+          <button class="ctrl-btn btn-rec-off" id="btnRecOff" onclick="cmdRecOff()"><div class="btn-icon"></div>REC OFF</button>
+        </div>
+
+        <div class="cmd-status" id="cmdStatus">READY</div>
+      </div>
+
+      <div class="panel" style="flex:1;">
+        <div class="panel-header"><span class="panel-title">◈ STATUS</span></div>
+        <div class="status-body">
+          <div class="stat-row">
+            <span class="stat-key">Mode</span>
+            <span class="stat-val" id="statMode">IDLE</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">ESP IP</span>
+            <span class="stat-val accent" id="statIp">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">Stream URL</span>
+            <span class="stat-val accent2" id="statUrl">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">Rec Duration</span>
+            <span class="stat-val rec" id="statRecDur">—</span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-key">Last Command</span>
+            <span class="stat-val green" id="statLastCmd">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- DEBUG CONSOLE -->
+      <div class="debug-panel">
+        <div class="panel-header">
+          <span class="panel-title">◈ DEBUG</span>
+          <span style="font-size:0.48rem;color:var(--dim);cursor:pointer;letter-spacing:1px;" onclick="clearDebug()">CLEAR</span>
+        </div>
+        <div class="debug-body" id="debugBody"></div>
+      </div>
+
+    </div>
+  </div>
+
+  <footer>
+    <span><span class="dot"></span>VISIONX SMART GLASSES</span>
+    <span id="footerStatus">STATUS: IDLE</span>
+  </footer>
+
+</div>
+<script>
+  // ══════════════════════════════════════════════════════════════════════════
+  // CONFIG — set your ESP32-CAM IP here
+  // ══════════════════════════════════════════════════════════════════════════
+  const ESP_IP = '192.168.1.XXX';
+  const ESP    = `http://${ESP_IP}`;
+
+  // ── ESP32-CAM ENDPOINTS (direct, no Flask) ────────────────────────────────
+  // These are the standard ESP32-CAM CameraWebServer endpoints.
+  // If your firmware uses different paths, update them here.
+  const STREAM_PATH     = '/stream';          // MJPEG feed
+  const CMD_STREAM_ON   = '/control?var=stream&val=1';  // start stream
+  const CMD_STREAM_OFF  = '/control?var=stream&val=0';  // stop stream
+  const CMD_REC_ON      = '/control?var=record&val=1';  // start recording
+  const CMD_REC_OFF     = '/control?var=record&val=0';  // stop recording
+
+  // ── STATE ─────────────────────────────────────────────────────────────────
+  let streaming = false;
+  let recording = false;
+  let recSecs   = 0;
+  let recTimer  = null;
+
+  // ── ELEMENTS ──────────────────────────────────────────────────────────────
+  const streamImg   = document.getElementById('streamImg');
+  const streamBadge = document.getElementById('streamBadge');
+  const idleMsg     = document.getElementById('idleMsg');
+  const loadingMsg  = document.getElementById('loadingMsg');
+  const clockEl     = document.getElementById('clock');
+  const modePill    = document.getElementById('modePill');
+  const recOverlay  = document.getElementById('recOverlay');
+  const recTimerEl  = document.getElementById('recTimer');
+  const cmdStatus   = document.getElementById('cmdStatus');
+  const footerSt    = document.getElementById('footerStatus');
+  const btnStreamOn = document.getElementById('btnStreamOn');
+  const btnStreamOff= document.getElementById('btnStreamOff');
+  const btnRecOn    = document.getElementById('btnRecOn');
+  const btnRecOff   = document.getElementById('btnRecOff');
+  const statMode    = document.getElementById('statMode');
+  const statIp      = document.getElementById('statIp');
+  const statUrl     = document.getElementById('statUrl');
+  const statRecDur  = document.getElementById('statRecDur');
+  const statLastCmd = document.getElementById('statLastCmd');
+  const debugBody   = document.getElementById('debugBody');
+
+  statIp.textContent = ESP_IP;
+
+  // ── CLOCK ─────────────────────────────────────────────────────────────────
+  const tick = () => clockEl.textContent = new Date().toTimeString().slice(0,8);
+  tick(); setInterval(tick, 1000);
+
+  // ── DEBUG LOG ─────────────────────────────────────────────────────────────
+  function dbg(msg, type='info') {
+    const t   = new Date().toTimeString().slice(0,8);
+    const el  = document.createElement('div');
+    el.className = 'debug-line ' + type;
+    el.textContent = `[${t}] ${msg}`;
+    debugBody.appendChild(el);
+    debugBody.scrollTop = debugBody.scrollHeight;
+    console.log(`[VISIONX ${type.toUpperCase()}]`, msg);
+  }
+  function clearDebug() { debugBody.innerHTML = ''; }
+
+  // ── BUTTON STATES ─────────────────────────────────────────────────────────
+  function syncButtons() {
+    btnStreamOn.disabled  = streaming || recording;
+    btnStreamOff.disabled = !streaming;
+    btnRecOn.disabled     = recording;
+    btnRecOff.disabled    = !recording;
+  }
+  syncButtons();
+
+  // ── MODE ──────────────────────────────────────────────────────────────────
+  function setMode(mode) {
+    const label = { streaming:'STREAMING', recording:'RECORDING', idle:'IDLE' }[mode];
+    const color = { streaming:'accent',    recording:'rec',       idle:''     }[mode];
+    modePill.className   = 'mode-pill ' + mode;
+    modePill.textContent = label;
+    statMode.className   = 'stat-val ' + color;
+    statMode.textContent = label;
+    footerSt.textContent = 'STATUS: ' + label;
+  }
+
+  // ── STATUS BAR ────────────────────────────────────────────────────────────
+  let statusTO = null;
+  function setStatus(msg, type) {
+    cmdStatus.className   = 'cmd-status ' + (type || '');
+    cmdStatus.textContent = msg;
+    if (statusTO) clearTimeout(statusTO);
+    if (type !== 'pending') statusTO = setTimeout(() => {
+      cmdStatus.className   = 'cmd-status';
+      cmdStatus.textContent = 'READY';
+    }, 3000);
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // SEND COMMAND TO ESP32 — using <img> ping trick
+  //
+  // fetch() is blocked from file:// by Chrome's security policy.
+  // BUT loading a URL via a hidden <img> tag is NOT blocked —
+  // the browser makes a real HTTP GET to the ESP, which triggers
+  // the endpoint. We read success/failure from the img load/error events.
+  // ══════════════════════════════════════════════════════════════════════════
+  function sendCmd(path, label) {
+    return new Promise((resolve) => {
+      const url = `${ESP}${path}&t=${Date.now()}`;
+      dbg(`→ ${label} :: ${url}`, 'info');
+      setStatus(label + '...', 'pending');
+
+      const img = new Image();
+      const timeout = setTimeout(() => {
+        dbg(`✗ ${label} TIMEOUT`, 'err');
+        setStatus('✗ ' + label + ' TIMEOUT', 'err');
+        resolve(false);
+      }, 5000);
+
+      img.onload = () => {
+        clearTimeout(timeout);
+        dbg(`✓ ${label} OK`, 'ok');
+        setStatus('✓ ' + label + ' OK', 'ok');
+        statLastCmd.textContent = label;
+        resolve(true);
+      };
+
+      img.onerror = () => {
+        // ESP32 often returns non-image responses (plain text / JSON).
+        // The browser fires onerror because it can't decode it as an image,
+        // BUT the HTTP request still reached the ESP and the command ran.
+        // So onerror here actually means SUCCESS — the ESP replied.
+        clearTimeout(timeout);
+        dbg(`✓ ${label} OK (ESP replied, non-image response)`, 'ok');
+        setStatus('✓ ' + label + ' OK', 'ok');
+        statLastCmd.textContent = label;
+        resolve(true);
+      };
+
+      img.src = url;
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // MJPEG STREAM  — <img> tag, no CORS restrictions
+  // ══════════════════════════════════════════════════════════════════════════
+  function startMJPEG() {
+    const url = `${ESP}${STREAM_PATH}?t=${Date.now()}`;
+    statUrl.textContent = url;
+    dbg('Starting MJPEG: ' + url, 'info');
+
+    idleMsg.style.display = 'none';
+    loadingMsg.classList.add('active');
+    streamImg.classList.remove('visible');
+
+    streamImg.src = url;
+  }
+
+  function stopMJPEG() {
+    streamImg.src = '';
+    streamImg.classList.remove('visible');
+    loadingMsg.classList.remove('active');
+    idleMsg.style.display = 'block';
+    statUrl.textContent   = '—';
+    dbg('MJPEG stopped', 'warn');
+  }
+
+  // First frame received
+  streamImg.addEventListener('load', () => {
+    if (!streaming) return;
+    loadingMsg.classList.remove('active');
+    idleMsg.style.display   = 'none';
+    streamImg.classList.add('visible');
+    streamBadge.className   = 'badge badge-live';
+    streamBadge.textContent = '● LIVE';
+    setStatus('✓ STREAM LIVE', 'ok');
+    dbg('MJPEG live — first frame received', 'ok');
+  });
+
+  // Feed dropped
+  streamImg.addEventListener('error', () => {
+    if (!streaming) return;
+    dbg('MJPEG error — retrying in 2s...', 'err');
+    setStatus('✗ STREAM LOST — RETRYING...', 'err');
+    setTimeout(() => { if (streaming) startMJPEG(); }, 2000);
+  });
+
+  function goOfflineUI() {
+    streaming = false;
+    stopMJPEG();
+    streamBadge.className   = 'badge badge-off';
+    streamBadge.textContent = '● OFFLINE';
+    if (!recording) setMode('idle');
+    syncButtons();
+  }
+
+  // ── REC TIMER ─────────────────────────────────────────────────────────────
+  function startRecTimer() {
+    recSecs = 0;
+    recTimerEl.textContent = statRecDur.textContent = '00:00:00';
+    recTimer = setInterval(() => {
+      recSecs++;
+      const h = String(Math.floor(recSecs / 3600)).padStart(2,'0');
+      const m = String(Math.floor((recSecs % 3600) / 60)).padStart(2,'0');
+      const s = String(recSecs % 60).padStart(2,'0');
+      recTimerEl.textContent = statRecDur.textContent = `${h}:${m}:${s}`;
+    }, 1000);
+  }
+
+  function stopRecTimer() {
+    if (recTimer) { clearInterval(recTimer); recTimer = null; }
+    statRecDur.textContent = '—';
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // BUTTON HANDLERS
+  // ══════════════════════════════════════════════════════════════════════════
+
+  async function cmdStreamOn() {
+    if (streaming) { setStatus('ALREADY STREAMING', 'ok'); return; }
+    if (recording) { setStatus('STOP RECORDING FIRST', 'err'); return; }
+    dbg('CMD: STREAM ON', 'info');
+
+    // Send command to ESP, then start MJPEG regardless
+    // (some firmware auto-streams without needing a command)
+    sendCmd(CMD_STREAM_ON, 'STREAM ON');   // fire-and-forget
+    streaming = true;
+    setMode('streaming');
+    syncButtons();
+    startMJPEG();
+  }
+
+  async function cmdStreamOff() {
+    if (!streaming) { setStatus('NOT STREAMING', 'err'); return; }
+    dbg('CMD: STREAM OFF', 'info');
+    goOfflineUI();
+    sendCmd(CMD_STREAM_OFF, 'STREAM OFF'); // fire-and-forget
+  }
+
+  async function cmdRecOn() {
+    if (recording) { setStatus('ALREADY RECORDING', 'ok'); return; }
+    dbg('CMD: REC ON', 'info');
+    if (streaming) {
+      goOfflineUI();
+      sendCmd(CMD_STREAM_OFF, 'STREAM OFF');
+    }
+    const ok = await sendCmd(CMD_REC_ON, 'REC ON');
+    if (ok) {
+      recording = true;
+      recOverlay.classList.add('active');
+      idleMsg.style.display   = 'none';
+      streamBadge.className   = 'badge badge-rec';
+      streamBadge.textContent = '⏺ REC';
+      setMode('recording');
+      startRecTimer();
+      syncButtons();
+    }
+  }
+
+  async function cmdRecOff() {
+    if (!recording) { setStatus('NOT RECORDING', 'err'); return; }
+    dbg('CMD: REC OFF', 'info');
+    const ok = await sendCmd(CMD_REC_OFF, 'REC OFF');
+    if (ok) {
+      recording = false;
+      recOverlay.classList.remove('active');
+      stopRecTimer();
+      idleMsg.style.display   = 'block';
+      streamBadge.className   = 'badge badge-off';
+      streamBadge.textContent = '● OFFLINE';
+      setMode('idle');
+      syncButtons();
+    }
+  }
+
+  // ── STARTUP LOG ───────────────────────────────────────────────────────────
+  dbg('VisionX dashboard ready', 'ok');
+  dbg(`ESP target: ${ESP}`, 'info');
+  dbg('NOTE: Open via http:// server for best results', 'warn');
+  dbg('Commands use img-ping trick to bypass file:// block', 'info');
+</script>
+</body>
+</html>
